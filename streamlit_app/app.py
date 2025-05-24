@@ -1,60 +1,109 @@
 import streamlit as st
-from agents.planner.controller import PlannerAgent
+import plotly.graph_objects as go
+from agents.planner import execute_agents
 
+# === UI ===
 st.set_page_config(page_title="DataSage Multi-Agent System", layout="wide")
 st.title("🧠 DataSage Multi-Agent System")
-st.markdown("Explore healthcare cost estimates and benefit summaries with AI agents powered by BigQuery.")
+st.caption("Explore healthcare cost estimates and benefit summaries with AI agents powered by BigQuery.")
 
-# Sidebar input
 st.sidebar.header("User Profile")
-age_min = st.sidebar.slider("Minimum Age", 0, 100, 30)
-age_max = st.sidebar.slider("Maximum Age", age_min, 100, 40)
-gender = st.sidebar.selectbox("Gender", ["Male", "Female"])
+min_age = st.sidebar.slider("Minimum Age", 0, 100, 30)
+max_age = st.sidebar.slider("Maximum Age", min_age, 100, 40)
+gender = st.sidebar.selectbox("Gender", ["Male", "Female", "Other"])
 visit_type = st.sidebar.selectbox("Visit Type", ["Primary Care", "Specialist", "Emergency"])
-region = st.sidebar.selectbox("Region", ["West", "Northeast", "South", "Midwest"])
+region = st.sidebar.selectbox("Region", ["West", "South", "Northeast", "Midwest"])
 
 st.sidebar.header("Select Agent Tasks")
-task_options = [
-    "estimate_cost",
-    "interpret_benefits",
-    "generate_insights",
-    "detect_anomalies",
-    "llm_summary"
-]
-selected_tasks = st.sidebar.multiselect("Choose one or more agents to run:", task_options, default=["estimate_cost"])
+selected_tasks = st.sidebar.multiselect(
+    "Choose one or more agents to run:",
+    options=["estimate_cost", "generate_insights", "interpret_benefits", "detect_anomalies", "llm_summary"],
+    default=["estimate_cost"]
+)
 
-inputs = {
-    "age_min": age_min,
-    "age_max": age_max,
-    "gender": gender,
-    "visit_type": visit_type,
-    "region": region
-}
+# === Default placeholders to prevent NameError ===
+estimate_result = {}
+insights_result = {}
+benefits_result = {}
+anomaly_result = {}
+llm_result = {}
 
-if st.button("Run Agents"):
-    with st.spinner("Running agents..."):
-        planner = PlannerAgent()
-        results = {}
+# === Run Button ===
+if st.sidebar.button("🚀 Run Agents"):
+    input_data = {
+        "min_age": min_age,
+        "max_age": max_age,
+        "gender": gender,
+        "visit_type": visit_type,
+        "region": region
+    }
+    results = execute_agents(input_data, selected_tasks)
 
-        for task in selected_tasks:
-            if task == "llm_summary":
-                results[task] = planner.run(task, {"results": results})
-            else:
-                results[task] = planner.run(task, inputs)
+    # Extract results safely
+    estimate_result = results.get("estimate_cost", {})
+    insights_result = results.get("generate_insights", {})
+    benefits_result = results.get("interpret_benefits", {})
+    anomaly_result = results.get("detect_anomalies", {})
+    llm_result = results.get("llm_summary", {})
 
-        st.markdown("## 📊 Results")
+# === KPI Card Display ===
+def display_kpi_metrics(cost_data):
+    st.subheader("📊 Key Cost Metrics")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Avg Cost", f"${cost_data.get('avg_cost', 0):.2f}")
+    col2.metric("Median Cost", f"${cost_data.get('median_cost', 0):.2f}")
+    col3.metric("Min Cost", f"${cost_data.get('min_cost', 0):.2f}")
+    col4.metric("Max Cost", f"${cost_data.get('max_cost', 0):.2f}")
 
-        # Display LLM summary cleanly
-        if "llm_summary" in selected_tasks and isinstance(results.get("llm_summary"), str):
-            st.subheader("🧠 LLM Summary")
-            st.write(results["llm_summary"])
+# === Plotly Chart ===
+def plot_cost_distribution(cost_data):
+    st.subheader("📈 Cost Distribution")
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number+delta",
+        value=cost_data["avg_cost"],
+        delta={"reference": cost_data["median_cost"]},
+        gauge={
+            "axis": {"range": [cost_data.get("min_cost", 0), cost_data.get("max_cost", 5000)]},
+            "steps": [
+                {"range": [cost_data.get("min_cost", 0), cost_data["avg_cost"]], "color": "lightblue"},
+                {"range": [cost_data["avg_cost"], cost_data.get("max_cost", 5000)], "color": "lightgray"},
+            ],
+        },
+        title={"text": "Average Cost Comparison"}
+    ))
+    st.plotly_chart(fig, use_container_width=True)
 
-        # Display all other agent results as JSON
-        for task in selected_tasks:
-            if task == "llm_summary":
-                continue  # already shown above
-            output = results.get(task)
-            if output:
-                st.subheader(f"🔹 {task.replace('_', ' ').title()}")
-                st.json(output)
+# === Main Output Rendering ===
+if estimate_result:
+    st.markdown("## 💵 Estimate Cost")
+    display_kpi_metrics({
+        "avg_cost": estimate_result.get("avg_cost", 0),
+        "median_cost": estimate_result.get("median_cost", 0),
+        "min_cost": insights_result.get("min_cost", 0),
+        "max_cost": insights_result.get("max_cost", 0),
+    })
+    plot_cost_distribution({
+        "avg_cost": estimate_result.get("avg_cost", 0),
+        "median_cost": estimate_result.get("median_cost", 0),
+        "min_cost": insights_result.get("min_cost", 0),
+        "max_cost": insights_result.get("max_cost", 0),
+    })
+
+if insights_result:
+    st.markdown("## 🔍 Generate Insights")
+    st.success(insights_result.get("insight", "No insight found."))
+
+if benefits_result:
+    st.markdown("## 🩺 Interpret Benefits")
+    st.info(f"**Summary:** {benefits_result.get('summary', '')}")
+    st.info(f"**Coverage:** {benefits_result.get('coverage', '')}")
+    st.info(f"**Copay:** {benefits_result.get('copay', '')}")
+
+if anomaly_result:
+    st.markdown("## 🚨 Detect Anomalies")
+    st.warning(anomaly_result.get("message", "No anomalies detected."))
+
+if llm_result:
+    st.markdown("## 🧠 Summary")
+    st.markdown(llm_result.get("summary", ""), unsafe_allow_html=True)
 

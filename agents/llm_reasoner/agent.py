@@ -4,28 +4,40 @@ from dotenv import load_dotenv
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
-
 class LLMReasonerAgent:
-    def __init__(self, model="gpt-4"):
-        self.model = model
+    def __init__(self):
+        # Setup for OpenAI or other LLM client
+        import openai
+        import os
+        from dotenv import load_dotenv
+        load_dotenv()
+        openai.api_key = os.getenv("OPENAI_API_KEY")
 
-    def summarize(self, results: dict) -> str:
-        content = "Here are the outputs from multiple agents analyzing healthcare cost data:\n"
-        for task, output in results.items():
-            content += f"\n---\n{task.upper()}:\n{output}\n"
+    def reason(self, input_data: dict, results: dict) -> dict:
+        # Construct context from previous agents
+        context_parts = []
+        if "estimate_cost" in results:
+            context_parts.append(f"Estimated Cost: {results['estimate_cost']}")
+        if "generate_insights" in results:
+            context_parts.append(f"Insights: {results['generate_insights']}")
+        if "interpret_benefits" in results:
+            context_parts.append(f"Benefits: {results['interpret_benefits']}")
+        if "detect_anomalies" in results:
+            context_parts.append(f"Anomalies: {results['detect_anomalies']}")
 
-        messages = [
-            {"role": "system", "content": "You are a helpful medical AI analyst assistant."},
-            {"role": "user", "content": content + "\n\nCan you summarize the key findings in simple terms and offer any recommendations?"}
-        ]
+        full_context = "\n".join(context_parts)
 
-        try:
-            response = openai.ChatCompletion.create(
-                model=self.model,
-                messages=messages,
-                temperature=0.7,
-                max_tokens=500,
-            )
-            return response.choices[0].message['content'].strip()
-        except Exception as e:
-            return f"LLM Error: {e}"
+        prompt = f"""You are a healthcare analyst. Based on the following data, generate a brief summary with 3 main points and one recommendation:\n\n{full_context}"""
+
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful data analyst."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=300
+        )
+
+        return {"summary": response['choices'][0]['message']['content']}
+
