@@ -7,6 +7,7 @@ st.set_page_config(page_title="DataSage Multi-Agent System", layout="wide")
 st.title("🧠 DataSage Multi-Agent System")
 st.caption("Explore healthcare cost estimates and benefit summaries with AI agents powered by BigQuery.")
 
+# === Sidebar Inputs ===
 st.sidebar.header("User Profile")
 min_age = st.sidebar.slider("Minimum Age", 0, 100, 30)
 max_age = st.sidebar.slider("Maximum Age", min_age, 100, 40)
@@ -21,7 +22,7 @@ selected_tasks = st.sidebar.multiselect(
     default=["estimate_cost"]
 )
 
-# === Default placeholders to prevent NameError ===
+# === Default placeholders ===
 estimate_result = {}
 insights_result = {}
 benefits_result = {}
@@ -37,45 +38,54 @@ if st.sidebar.button("🚀 Run Agents"):
         "visit_type": visit_type,
         "region": region
     }
+
     results = execute_agents(input_data, selected_tasks)
 
-    # Extract results safely
     estimate_result = results.get("estimate_cost", {})
     insights_result = results.get("generate_insights", {})
     benefits_result = results.get("interpret_benefits", {})
     anomaly_result = results.get("detect_anomalies", {})
     llm_result = results.get("llm_summary", {})
 
-# === KPI Card Display ===
+# === KPI Display ===
 def display_kpi_metrics(cost_data):
     st.subheader("📊 Key Cost Metrics")
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Avg Cost", f"${cost_data.get('avg_cost', 0):.2f}")
-    col2.metric("Median Cost", f"${cost_data.get('median_cost', 0):.2f}")
-    col3.metric("Min Cost", f"${cost_data.get('min_cost', 0):.2f}")
-    col4.metric("Max Cost", f"${cost_data.get('max_cost', 0):.2f}")
+    col1.metric("Avg Cost", f"${cost_data.get('avg_cost', 0):,.2f}")
+    col2.metric("Median Cost", f"${cost_data.get('median_cost', 0):,.2f}")
+    col3.metric("Min Cost", f"${cost_data.get('min_cost', 0):,.2f}")
+    col4.metric("Max Cost", f"${cost_data.get('max_cost', 0):,.2f}")
+
+    with st.expander("ℹ️ What these KPIs mean"):
+        st.markdown("""
+        - **Avg Cost**: The average cost of care based on selected filters.
+        - **Median Cost**: The midpoint cost value—less sensitive to outliers.
+        - **Min/Max Cost**: The lowest and highest recorded costs in this cohort.
+        - **Gauge Chart**: Visualizes whether the average is below or above the median—useful for detecting skewness in data.
+        """)
 
 # === Plotly Chart ===
 def plot_cost_distribution(cost_data):
     st.subheader("📈 Cost Distribution")
     fig = go.Figure(go.Indicator(
         mode="gauge+number+delta",
-        value=cost_data["avg_cost"],
-        delta={"reference": cost_data["median_cost"]},
+        value=cost_data.get("avg_cost", 0),
+        delta={"reference": cost_data.get("median_cost", 0)},
         gauge={
             "axis": {"range": [cost_data.get("min_cost", 0), cost_data.get("max_cost", 5000)]},
+            "bar": {"color": "green"},
             "steps": [
-                {"range": [cost_data.get("min_cost", 0), cost_data["avg_cost"]], "color": "lightblue"},
-                {"range": [cost_data["avg_cost"], cost_data.get("max_cost", 5000)], "color": "lightgray"},
+                {"range": [cost_data.get("min_cost", 0), cost_data.get("avg_cost", 0)], "color": "lightgreen"},
+                {"range": [cost_data.get("avg_cost", 0), cost_data.get("max_cost", 5000)], "color": "lightgray"},
             ],
         },
         title={"text": "Average Cost Comparison"}
     ))
     st.plotly_chart(fig, use_container_width=True)
 
-# === Main Output Rendering ===
+# === Render Outputs ===
 if estimate_result:
-    st.markdown("## 💵 Estimate Cost")
+    st.markdown("## 🧾 Estimate Cost")
     display_kpi_metrics({
         "avg_cost": estimate_result.get("avg_cost", 0),
         "median_cost": estimate_result.get("median_cost", 0),
@@ -106,4 +116,5 @@ if anomaly_result:
 if llm_result:
     st.markdown("## 🧠 Summary")
     st.markdown(llm_result.get("summary", ""), unsafe_allow_html=True)
+
 

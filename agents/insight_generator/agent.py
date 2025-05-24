@@ -4,8 +4,8 @@ class InsightGeneratorAgent:
     def __init__(self):
         self.client = bigquery.Client()
 
-    def generate(self, age_min: int, age_max: int, gender: str, visit_type: str, region: str):
-        query = f"""
+    def generate(self, age_min: int, age_max: int, gender: str, visit_type: str, region: str) -> dict:
+        query = """
         SELECT
             visit_type,
             region,
@@ -16,9 +16,9 @@ class InsightGeneratorAgent:
             ROUND(MAX(cost), 2) AS max_cost
         FROM `datasage-adk-v2.datasage_health.healthcare_costs`
         WHERE age BETWEEN @age_min AND @age_max
-          AND gender = @gender
-          AND visit_type = @visit_type
-          AND region = @region
+            AND gender = @gender
+            AND visit_type = @visit_type
+            AND region = @region
         GROUP BY visit_type, region, gender
         """
 
@@ -33,16 +33,21 @@ class InsightGeneratorAgent:
         )
 
         query_job = self.client.query(query, job_config=job_config)
-        result = list(query_job.result())
-        
-        if not result:
+        results = list(query_job.result())
+
+        if not results:
             return {"message": "No matching insights found."}
 
-        row = result[0]
+        row = results[0]
         return {
+            "avg_cost": row["avg_cost"],
+            "min_cost": row["min_cost"],
+            "max_cost": row["max_cost"],
+            "visit_count": row["visit_count"],
             "insight": (
                 f"For {gender}s aged {age_min}-{age_max} in {region} visiting for {visit_type}, "
                 f"there were {row['visit_count']} visits. "
                 f"Avg cost: ${row['avg_cost']}, Min: ${row['min_cost']}, Max: ${row['max_cost']}."
             )
         }
+
