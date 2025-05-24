@@ -9,7 +9,7 @@ class LLMReasonerAgent:
     def __init__(self, model="gpt-4"):
         self.model = model
 
-    def summarize_outputs(self, results: dict) -> str:
+    def summarize(self, results: dict) -> str:
         content = "Here are the outputs from multiple agents analyzing healthcare cost data:\n"
         for task, output in results.items():
             content += f"\n---\n{task.upper()}:\n{output}\n"
