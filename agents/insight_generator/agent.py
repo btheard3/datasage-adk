@@ -1,53 +1,53 @@
-from google.cloud import bigquery
+import os
+import openai
+from dotenv import load_dotenv
 
-class InsightGeneratorAgent:
-    def __init__(self):
-        self.client = bigquery.Client()
+load_dotenv()
 
-    def generate(self, age_min: int, age_max: int, gender: str, visit_type: str, region: str) -> dict:
-        query = """
-        SELECT
-            visit_type,
-            region,
-            gender,
-            COUNT(*) AS visit_count,
-            ROUND(AVG(cost), 2) AS avg_cost,
-            ROUND(MIN(cost), 2) AS min_cost,
-            ROUND(MAX(cost), 2) AS max_cost
-        FROM `datasage-adk-v2.datasage_health.healthcare_costs`
-        WHERE age BETWEEN @age_min AND @age_max
-            AND gender = @gender
-            AND visit_type = @visit_type
-            AND region = @region
-        GROUP BY visit_type, region, gender
-        """
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-        job_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ScalarQueryParameter("age_min", "INT64", age_min),
-                bigquery.ScalarQueryParameter("age_max", "INT64", age_max),
-                bigquery.ScalarQueryParameter("gender", "STRING", gender),
-                bigquery.ScalarQueryParameter("visit_type", "STRING", visit_type),
-                bigquery.ScalarQueryParameter("region", "STRING", region),
+def build_prompt(input_data, results):
+    context = []
+
+    if "estimate_cost" in results:
+        cost = results["estimate_cost"]
+        context.append(f"Estimated healthcare cost: Avg = ${cost.get('avg_cost')}, Median = ${cost.get('median_cost')}.")
+
+    if "interpret_benefits" in results:
+        benefits = results["interpret_benefits"]
+        context.append(f"Benefits: {benefits.get('summary')} Coverage: {benefits.get('coverage')}, Copay: {benefits.get('copay')}.")
+
+    if "detect_anomalies" in results:
+        anomaly = results["detect_anomalies"]
+        context.append(f"Anomaly check: {anomaly.get('message')}")
+
+    user_profile = (
+        f"User profile: {input_data['gender']} aged {input_data['min_age']}-{input_data['max_age']}, "
+        f"Region: {input_data['region']}, Visit type: {input_data['visit_type']}."
+    )
+
+    return (
+        f"{user_profile}\n\n"
+        f"{chr(10).join(context)}\n\n"
+        "Please generate a 3-bullet insight summary and one personalized recommendation based on the data above."
+    )
+
+def run(input_data: dict, results: dict) -> dict:
+    prompt = build_prompt(input_data, results)
+
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a helpful healthcare data analyst."},
+                {"role": "user", "content": prompt}
             ]
         )
+        insight = response['choices'][0]['message']['content']
+    except Exception as e:
+        insight = f"❌ OpenAI error: {str(e)}"
 
-        query_job = self.client.query(query, job_config=job_config)
-        results = list(query_job.result())
+    return {"insight": insight}
 
-        if not results:
-            return {"message": "No matching insights found."}
 
-        row = results[0]
-        return {
-            "avg_cost": row["avg_cost"],
-            "min_cost": row["min_cost"],
-            "max_cost": row["max_cost"],
-            "visit_count": row["visit_count"],
-            "insight": (
-                f"For {gender}s aged {age_min}-{age_max} in {region} visiting for {visit_type}, "
-                f"there were {row['visit_count']} visits. "
-                f"Avg cost: ${row['avg_cost']}, Min: ${row['min_cost']}, Max: ${row['max_cost']}."
-            )
-        }
 

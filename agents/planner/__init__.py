@@ -11,7 +11,7 @@ def execute_agents(input_data: dict, selected_tasks: list) -> dict:
         results["estimate_cost"] = estimate_cost(input_data)
 
     if "generate_insights" in selected_tasks:
-        results["generate_insights"] = generate_insights(input_data)
+        results["generate_insights"] = generate_insights(input_data, results)
 
     if "interpret_benefits" in selected_tasks:
         results["interpret_benefits"] = interpret_benefits(input_data)
