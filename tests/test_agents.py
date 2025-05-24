@@ -1,23 +1,16 @@
-from agents.planner.controller import PlannerAgent
+from agents.llm_reasoner.agent import LLMReasonerAgent
 
-planner = PlannerAgent()
-
-params = {
-    "age_min": 30,
-    "age_max": 40,
-    "gender": "Male",
-    "visit_type": "Primary Care",
-    "region": "West"
+mock_results = {
+    "estimate_cost": {"avg_cost": 2489, "median_cost": 2432},
+    "benefits_interpreter": {"summary": "Service is typically covered with low out-of-pocket cost."},
+    "generate_insights": {"insight": "Spring sees the highest volume of visits in the West."},
+    "detect_anomalies": {"anomaly_flag": False, "message": "No anomalies detected."}
 }
 
-output1 = planner.run("estimate_cost", params)
-output2 = planner.run("interpret_benefits", params)
-output3 = planner.run("generate_insights", params)
-output4 = planner.run("detect_anomalies", params)
+agent = LLMReasonerAgent()
+summary = agent.summarize_outputs(mock_results)
 
-print("Cost Estimate:", output1)
-print("Benefit Summary:", output2)
-print("Insights:", output3)
-print("Anomalies:", output4)
+print("🧠 LLM Summary:\n")
+print(summary)
 
 

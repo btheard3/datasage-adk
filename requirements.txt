@@ -1,0 +1,6 @@
+openai==0.28
+google-cloud-bigquery
+streamlit
+python-dotenv
+pandas
+matplotlib
