@@ -1,2 +1,3 @@
-from .agent import run
+from .agent import run as generate_insights
+
 

@@ -1,12 +1,12 @@
-from agents.cost_estimator import run as estimate_cost
-from agents.insight_generator import run as generate_insights
-from agents.benefits_interpreter import run as interpret_benefits
-from agents.anomaly_detector import run as detect_anomalies
-from agents.llm_reasoner import run as llm_summary
+from agents.cost_estimator import estimate_cost
+from agents.benefits_interpreter import interpret_benefits
+from agents.anomaly_detector import detect_anomalies
+from agents.insight_generator import generate_insights
+from agents.llm_reasoner import llm_summary
 
 def execute_agents(input_data: dict, selected_tasks: list) -> dict:
     results = {}
-
+    
     if "estimate_cost" in selected_tasks:
         results["estimate_cost"] = estimate_cost(input_data)
 
@@ -23,4 +23,5 @@ def execute_agents(input_data: dict, selected_tasks: list) -> dict:
         results["llm_summary"] = llm_summary(input_data, results)
 
     return results
+
 

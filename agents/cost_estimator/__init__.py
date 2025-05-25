@@ -1,11 +1,12 @@
 from .agent import CostEstimatorAgent
 
-def run(input_data):
+def estimate_cost(input_data: dict) -> dict:
     agent = CostEstimatorAgent()
     return agent.estimate_cost(
-        age_min=input_data["min_age"],
-        age_max=input_data["max_age"],
+        age_min = input_data["age_min"],
+        age_max = input_data["age_max"],
         gender=input_data["gender"],
         visit_type=input_data["visit_type"],
         region=input_data["region"]
     )
+
