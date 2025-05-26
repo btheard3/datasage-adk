@@ -1,4 +1,5 @@
 import os
+import math
 import streamlit as st
 from io import BytesIO
 from agents.planner import execute_agents
@@ -36,79 +37,75 @@ input_data = {
 if st.sidebar.button("▶️ Run Agents"):
     results = execute_agents(input_data, selected_tasks)
 
-    # --- KPI + GAUGE BLOCK ---
+    # --- ESTIMATED COST METRICS ---
     if "estimate_cost" in results:
-        st.markdown("### 💲 Estimate Cost Summary")
-        with st.container():
-            st.markdown("""
-                <div style='background-color: #f9f9f9; padding: 20px; border-radius: 10px; box-shadow: 0 0 6px rgba(0,0,0,0.05);'>
-            """, unsafe_allow_html=True)
+        st.subheader("💲 Estimate Cost Summary")
+        cost = results["estimate_cost"]
 
-            cost = results["estimate_cost"]
-            avg = cost.get("avg_cost", 0)
-            median = cost.get("median_cost", 0)
-            min_val = cost.get("min_cost", 0)
-            max_val = cost.get("max_cost", 0)
+        avg = cost.get("avg_cost")
+        median = cost.get("median_cost")
+        min_cost = cost.get("min_cost")
+        max_cost = cost.get("max_cost")
 
+        if any(x is None or (isinstance(x, float) and math.isnan(x)) for x in [avg, median, min_cost]):
+            st.warning("🚫 No cost data available for this filter combination. Try adjusting the age range, region, or visit type.")
+        else:
             col1, col2, col3 = st.columns(3)
             col1.metric("📊 Avg Cost", f"${avg:,.2f}")
-            col2.metric("⚖️ Median Cost", f"${median:,.2f}")
-            col3.metric("🔻 Min Cost", f"${min_val:,.2f}")
+            col2.metric("📘 Median Cost", f"${median:,.2f}")
+            col3.metric("📉 Min Cost", f"${min_cost:,.2f}")
 
-            st.markdown("---")
+            with st.expander("ℹ️ What do these numbers mean?"):
+                st.markdown("""
+                - **Average Cost**: The mean amount paid by users for this service type.
+                - **Median Cost**: The midpoint — half paid more, half paid less. Less sensitive to outliers.
+                - **Min Cost**: The lowest recorded cost for the selected criteria.
+                """)
 
-            st.markdown("#### 📈 Cost Distribution Gauge")
-            gauge_max = max(max_val, median + 1000)
+            # --- GAUGE ---
+            st.subheader("📈 Cost Distribution Gauge")
+            max_val = max(max_cost or 0, median + 1000)
 
             fig = go.Figure(go.Indicator(
                 mode="gauge+number+delta",
                 value=avg,
-                delta={"reference": median, "increasing": {"color": "red"}, "decreasing": {"color": "green"}},
-                gauge={"axis": {"range": [0, gauge_max]}},
-                title={'text': "Average vs Median Cost"},
+                delta={"reference": median, "increasing": {"color": "red"}},
+                gauge={"axis": {"range": [0, max_val]}},
+                title={'text': "Average vs Median Cost"}
             ))
+
             st.plotly_chart(fig, use_container_width=True)
 
-            st.markdown("</div>", unsafe_allow_html=True)
+            with st.expander("ℹ️ What does the gauge show?"):
+                st.markdown("""
+                This gauge shows how the **average cost** compares to the **median**:
+                - The needle shows the **average cost** for your filters.
+                - The delta below it tells how far off it is from the **typical (median)** cost.
+                - A **big red delta**? The average is likely skewed by outliers.
+                - A small delta? That’s a stable and predictable price range.
+                """)
 
-        # --- EXPLANATIONS ---
-        with st.expander("📘 What do these numbers mean?"):
-            st.markdown("""
-            - **Average Cost**: The overall mean amount people paid for the selected care type.
-            - **Median Cost**: The midpoint — half paid less, half paid more.
-            - **Minimum Cost**: The lowest cost recorded for this demographic group.
-            """)
-
-        with st.expander("📘 What does the gauge show?"):
-            st.markdown("""
-            The gauge compares the average cost to the median for your selected filters.
-
-            - A red delta means the **average is higher**, possibly due to outliers.
-            - If delta is low or green, it’s a **stable and consistent** cost distribution.
-            - The range shows how this average fits against the **max expected cost** in the dataset.
-            """)
-
-    # --- BENEFIT INTERPRETATION ---
+    # --- DISPLAY BENEFITS ---
     if "interpret_benefits" in results:
-        st.markdown("### 🧬 Interpret Benefits")
+        st.subheader("🧬 Interpret Benefits")
         b = results["interpret_benefits"]
         st.markdown(f"**Coverage**: {b.get('coverage', '')}")
         st.markdown(f"**Copay**: {b.get('copay', '')}")
         st.markdown(f"**Summary**: {b.get('summary', '')}")
 
-    # --- ANOMALY DETECTION ---
+    # --- DISPLAY ANOMALIES ---
     if "detect_anomalies" in results:
-        st.markdown("### ⚠️ Detect Anomalies")
+        st.subheader("⚠️ Detect Anomalies")
         a = results["detect_anomalies"]
         st.success(a.get("message", "No anomalies detected."))
 
-    # --- INSIGHTS ---
+    # --- DISPLAY INSIGHTS ---
     if "generate_insights" in results:
-        st.markdown("### 🧠 Agent Summary")
+        st.subheader("🧠 Insights")
         st.markdown(results["generate_insights"].get("insight", ""))
 
     # --- EXPORT TO PDF ---
-    st.markdown("### 📄 Export Report")
+    st.subheader("📄 Export Report")
     pdf_bytes = generate_pdf_report(results)
     st.download_button(
         label="⬇️ Download Report as PDF",
