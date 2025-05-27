@@ -175,3 +175,9 @@ cython_debug/
 
 .secrets
 
+# .gitignore
+.env
+.secrets/
+__pycache__/
+*.pyc
+*.ipynb_checkpoints/
