@@ -1,9 +1,10 @@
 import os
-import streamlit as st
 from io import BytesIO
+import streamlit as st
+import plotly.graph_objects as go
+
 from agents.planner import execute_agents
 from streamlit_app.pdf_export import generate_pdf_report
-import plotly.graph_objects as go
 
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="DataSage Multi-Agent System", layout="wide")
@@ -19,12 +20,12 @@ region = st.sidebar.selectbox("Region", ["Northeast", "Midwest", "South", "West"
 visit_type = st.sidebar.selectbox("Visit Type", ["Primary Care", "Mental Health", "Emergency", "Specialist"])
 
 selected_tasks = st.sidebar.multiselect(
-    "🤖 Select Agents to Run",
+    "🧩 Select Agents to Run",
     ["estimate_cost", "interpret_benefits", "detect_anomalies", "generate_insights"],
     default=["estimate_cost", "generate_insights"]
 )
 
-# --- INPUT DATA PACKAGE ---
+# --- AGENT EXECUTION ---
 input_data = {
     "age_min": age_min,
     "age_max": age_max,
@@ -33,60 +34,54 @@ input_data = {
     "region": region
 }
 
-# Track if PDF exported
-pdf_exported = False
-
-# --- RUN AGENTS ---
 if st.sidebar.button("▶️ Run Agents"):
     results = execute_agents(input_data, selected_tasks)
 
-    # --- ESTIMATED COST ---
+    # --- DISPLAY COST METRICS ---
     if "estimate_cost" in results:
         st.header("💲 Estimate Cost Summary")
         cost = results["estimate_cost"]
 
-        avg = cost.get("avg_cost", None)
-        median = cost.get("median_cost", None)
-        min_cost = cost.get("min_cost", None)
-        max_cost = cost.get("max_cost", 0)
+        if not cost or any(val is None for val in cost.values()):
+            st.warning("No cost data found. Try adjusting the filters.")
+        else:
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("📊 Avg Cost", f"${cost.get('avg_cost', 0):,.2f}")
+            col2.metric("🧮 Median Cost", f"${cost.get('median_cost', 0):,.2f}")
+            col3.metric("🔻 Min Cost", f"${cost.get('min_cost', 0):,.2f}")
+            col4.metric("🔺 Max Cost", f"${cost.get('max_cost', 0):,.2f}")
 
-        if all(val is not None and val > 0 for val in [avg, median, min_cost]):
-            # KPI metrics
-            col1, col2, col3 = st.columns(3)
-            col1.metric("📊 Avg Cost", f"${avg:,.2f}")
-            col2.metric("📏 Median Cost", f"${median:,.2f}")
-            col3.metric("🔻 Min Cost", f"${min_cost:,.2f}")
+            with st.expander("ℹ️ What do these numbers mean?"):
+                st.markdown("""
+                - **Average Cost**: Mean cost across all relevant healthcare visits.
+                - **Median Cost**: Midpoint cost — half of the cases were lower, half higher.
+                - **Minimum / Maximum Cost**: Extremes observed in the dataset for your filters.
+                """)
 
             # --- GAUGE ---
             st.subheader("📈 Cost Distribution Gauge")
+            avg = cost.get("avg_cost", 0)
+            median = cost.get("median_cost", 0)
+            max_val = max(cost.get("max_cost", 0), median + 1000)
+
             fig = go.Figure(go.Indicator(
                 mode="gauge+number+delta",
                 value=avg,
                 delta={"reference": median, "increasing": {"color": "red"}},
-                gauge={"axis": {"range": [0, max(max_cost, median + 1000)]}},
-                title={"text": "Average vs Median Cost"}
+                gauge={"axis": {"range": [0, max_val]}},
+                title={'text': "Average vs Median Cost"}
             ))
             st.plotly_chart(fig, use_container_width=True)
 
-        else:
-            st.warning("⚠️ No cost data available for this filter combination. Try adjusting age, region, or visit type.")
+            with st.expander("ℹ️ What does the gauge show?"):
+                st.markdown("""
+                - The **needle** shows the average cost.
+                - The **delta** shows how far off it is from the median:
+                  - Red = average is higher (outliers or skew).
+                - Use it to understand if your case is likely "typical" or expensive.
+                """)
 
-        with st.expander("❓ What do these numbers mean?"):
-            st.markdown("""
-            - **Average Cost**: The overall mean cost across patients matching your criteria.
-            - **Median Cost**: The midpoint — half of people paid less, half paid more.
-            - **Min Cost**: The least expensive visit in the dataset for this group.
-            """)
-
-        with st.expander("📊 What does the gauge show?"):
-            st.markdown("""
-            The gauge compares **average** to **median** costs:
-            - Red delta = higher-than-typical costs.
-            - Close to zero = stable cost structure.
-            - Use it to spot anomalies or outliers at a glance.
-            """)
-
-    # --- INTERPRET BENEFITS ---
+    # --- BENEFITS ---
     if "interpret_benefits" in results:
         st.subheader("🧬 Interpret Benefits")
         b = results["interpret_benefits"]
@@ -94,63 +89,27 @@ if st.sidebar.button("▶️ Run Agents"):
         st.markdown(f"**Copay**: {b.get('copay', '')}")
         st.markdown(f"**Summary**: {b.get('summary', '')}")
 
-    # --- DETECT ANOMALIES ---
+    # --- ANOMALY DETECTION ---
     if "detect_anomalies" in results:
         st.subheader("⚠️ Detect Anomalies")
         a = results["detect_anomalies"]
         st.success(a.get("message", "No anomalies detected."))
 
-    # --- GENERATE INSIGHTS ---
+    # --- INSIGHTS ---
     if "generate_insights" in results:
-        st.subheader("🧠 Insights")
+        st.subheader("💡 Insights")
         st.markdown(results["generate_insights"].get("insight", ""))
 
-    # --- EXPORT TO PDF ---
+    # --- PDF EXPORT ---
     st.subheader("📄 Export Report")
     pdf_bytes = generate_pdf_report(results)
-    if st.download_button("⬇️ Download Report as PDF", data=BytesIO(pdf_bytes), file_name="datasage_report.pdf", mime="application/pdf"):
-        pdf_exported = True
+    st.download_button(
+        label="⬇️ Download Report as PDF",
+        data=BytesIO(pdf_bytes),
+        file_name="datasage_report.pdf",
+        mime="application/pdf"
+    )
 
-    # --- USER ENGAGEMENT SCORE ---
-    def compute_engagement_score(selected_tasks, age_min, age_max, results, pdf_exported=False):
-        score = 0
-        messages = []
-
-        if len(selected_tasks) >= 3:
-            score += 2
-            messages.append("You explored multiple agents for a deeper analysis.")
-        elif len(selected_tasks) == 2:
-            score += 1
-            messages.append("You're using at least two insights — a solid start!")
-
-        if age_max - age_min <= 10:
-            score += 1
-            messages.append("You've selected a narrow age range — precise targeting!")
-
-        if results.get("interpret_benefits") or results.get("detect_anomalies"):
-            score += 2
-            messages.append("You explored specialized agents for benefits or anomaly detection.")
-
-        if pdf_exported:
-            score += 2
-            messages.append("You downloaded the report — strong engagement!")
-
-        if score >= 6:
-            tier = "🔥 High"
-        elif score >= 3:
-            tier = "✅ Medium"
-        else:
-            tier = "📊 Low"
-
-        return score, tier, messages
-
-    score, tier, reasons = compute_engagement_score(selected_tasks, age_min, age_max, results, pdf_exported)
-    st.subheader("🎯 Engagement Score")
-    st.markdown(f"**Level:** {tier} ({score}/8)")
-
-    with st.expander("💡 Why this score?"):
-        for msg in reasons:
-            st.markdown(f"- {msg}")
 
 
 

@@ -1,26 +1,54 @@
 from fpdf import FPDF
 
+class PDF(FPDF):
+    def header(self):
+        self.set_font("Arial", "B", 14)
+        self.cell(0, 10, "DataSage Report Summary", ln=True, align="C")
+
+    def add_section(self, title, content):
+        self.ln(10)
+        self.set_font("Arial", "B", 12)
+        self.cell(0, 10, title, ln=True)
+        self.set_font("Arial", "", 11)
+        self.multi_cell(0, 8, content)
+
 def generate_pdf_report(results: dict) -> bytes:
-    pdf = FPDF()
+    pdf = PDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, "DataSage Cost Report", ln=True, align='C')
-    pdf.ln(5)
 
-    for section, content in results.items():
-        pdf.set_font("Arial", 'B', size=12)
-        pdf.cell(200, 10, section.replace("_", " ").title(), ln=True)
-        pdf.set_font("Arial", size=11)
+    if "estimate_cost" in results:
+        c = results["estimate_cost"]
+        section = f"""
+        - Average Cost: ${c.get('avg_cost', 0):,.2f}
+        - Median Cost: ${c.get('median_cost', 0):,.2f}
+        - Min Cost: ${c.get('min_cost', 0):,.2f}
+        - Max Cost: ${c.get('max_cost', 0):,.2f}
+        """
+        pdf.add_section("Estimate Cost", section)
 
-        if isinstance(content, dict):
-            for key, value in content.items():
-                pdf.multi_cell(0, 10, f"{key}: {value}")
-        else:
-            pdf.multi_cell(0, 10, str(content))
+    if "interpret_benefits" in results:
+        b = results["interpret_benefits"]
+        section = f"""
+        Coverage: {b.get('coverage', '')}
+        Copay: {b.get('copay', '')}
+        Summary: {b.get('summary', '')}
+        """
+        pdf.add_section("Benefit Interpretation", section)
 
-        pdf.ln(5)
+    if "detect_anomalies" in results:
+        a = results["detect_anomalies"]
+        pdf.add_section("Anomaly Detection", a.get("message", ""))
 
-    return pdf.output(dest="S").encode("latin1", "replace")
+    if "generate_insights" in results:
+        insight = results["generate_insights"].get("insight", "")
+        pdf.add_section("Insights", insight)
+
+    return bytes(pdf.output(dest="S"))
+
+
+
+
+
 
 
 
