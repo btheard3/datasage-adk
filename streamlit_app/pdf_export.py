@@ -1,57 +1,33 @@
 from fpdf import FPDF
-import os
-
-class PDF(FPDF):
-    def header(self):
-        self.set_font('DejaVu', '', 14)
-        self.cell(0, 10, "DataSage Report Summary", ln=True, align="C")
-
-    def add_section(self, title, content):
-        self.ln(10)
-        self.set_font('DejaVu', '', 12)
-        self.cell(0, 10, title, ln=True)
-        self.set_font('DejaVu', '', 11)
-        self.multi_cell(0, 8, content)
+import io
 
 def generate_pdf_report(results: dict) -> bytes:
-    pdf = PDF()
-
-    # ✅ Add the Unicode font BEFORE using it
-    font_path = os.path.join("streamlit_app", "fonts", "DejaVuSans.ttf")  # adjust if needed
-    pdf.add_font('DejaVu', '', font_path, uni=True)
-    pdf.set_font('DejaVu', '', 12)
-
-    # ✅ Now safe to add page (which triggers header)
+    pdf = FPDF()
     pdf.add_page()
+    pdf.set_font("Arial", size=12)
 
-    if "estimate_cost" in results:
-        c = results["estimate_cost"]
-        section = f"""
-- Average Cost: ${c.get('avg_cost', 0):,.2f}
-- Median Cost: ${c.get('median_cost', 0):,.2f}
-- Min Cost: ${c.get('min_cost', 0):,.2f}
-- Max Cost: ${c.get('max_cost', 0):,.2f}
-"""
-        pdf.add_section("Estimate Cost", section)
+    pdf.cell(0, 10, "DataSage Report", ln=True, align="C")
 
-    if "interpret_benefits" in results:
-        b = results["interpret_benefits"]
-        section = f"""
-- Coverage: {b.get('coverage', '')}
-- Copay: {b.get('copay', '')}
-- Summary: {b.get('summary', '')}
-"""
-        pdf.add_section("Benefit Interpretation", section)
+    for section, content in results.items():
+        pdf.ln(10)
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 10, txt=section.replace("_", " ").title(), ln=True)
 
-    if "detect_anomalies" in results:
-        a = results["detect_anomalies"]
-        pdf.add_section("Anomaly Detection", a.get("message", ""))
+        pdf.set_font("Arial", size=11)
+        if isinstance(content, dict):
+            for key, value in content.items():
+                value_str = str(value).replace("\n", " ").strip()
+                pdf.multi_cell(0, 8, f"{key}: {value_str}")
+        else:
+            pdf.multi_cell(0, 8, str(content))
 
-    if "generate_insights" in results:
-        insight = results["generate_insights"].get("insight", "")
-        pdf.add_section("Insights", insight)
+    output = io.BytesIO()
+    pdf.output(output)
+    output.seek(0)
+    return output.read()
 
-    return bytes(pdf.output(dest="S"))
+
+
 
 
 
