@@ -1,0 +1,23 @@
+name: cost_estimator
+description: Estimate average, median, min, and max healthcare costs from BigQuery based on patient filters.
+entrypoint: src/agent.py
+inputs:
+  - name: age_min
+    type: int
+  - name: age_max
+    type: int
+  - name: gender
+    type: str
+  - name: region
+    type: str
+  - name: visit_type
+    type: str
+outputs:
+  - name: avg_cost
+    type: float
+  - name: median_cost
+    type: float
+  - name: min_cost
+    type: float
+  - name: max_cost
+    type: float

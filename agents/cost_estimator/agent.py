@@ -1,58 +1,67 @@
 import os
-from typing import Dict
 from google.cloud import bigquery
 from google.oauth2 import service_account
 from dotenv import load_dotenv
 
-load_dotenv()
+def run(**kwargs):
+    load_dotenv()
 
-class CostEstimatorAgent:
-    def __init__(self):
-        key_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", ".secrets", "datasage-adk-v2-656c3805b9f3.json"
-        )
-        credentials = service_account.Credentials.from_service_account_file(key_path)
-        self.client = bigquery.Client(credentials=credentials, project=credentials.project_id)
+    # Load service account credentials
+    key_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), '..', '..', '.secrets', 'creds.json')
+    )
+    credentials = service_account.Credentials.from_service_account_file(key_path)
+    client = bigquery.Client(credentials=credentials, project=credentials.project_id)
 
-    def run(self, inputs: Dict) -> Dict:
-        query = f"""
-            SELECT
-                AVG(cost) AS avg_cost,
-                APPROX_QUANTILES(cost, 2)[OFFSET(1)] AS median_cost,
-                MIN(cost) AS min_cost,
-                MAX(cost) AS max_cost
-            FROM `datasage-adk-v2.datasage_health.healthcare_costs`
-            WHERE
-                age BETWEEN @age_min AND @age_max
-                AND gender = @gender
-                AND visit_type = @visit_type
-                AND region = @region
-        """
+    # Extract input parameters
+    age_min = kwargs.get("age_min", 0)
+    age_max = kwargs.get("age_max", 100)
+    gender = kwargs.get("gender", "").lower()
+    region = kwargs.get("region", "").lower()
+    visit_type = kwargs.get("visit_type", "").lower()
 
-        job_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ScalarQueryParameter("age_min", "INT64", inputs["age_min"]),
-                bigquery.ScalarQueryParameter("age_max", "INT64", inputs["age_max"]),
-                bigquery.ScalarQueryParameter("gender", "STRING", inputs["gender"]),
-                bigquery.ScalarQueryParameter("visit_type", "STRING", inputs["visit_type"]),
-                bigquery.ScalarQueryParameter("region", "STRING", inputs["region"]),
-            ]
-        )
+    # Build dynamic WHERE clause
+    conditions = [f"age BETWEEN {age_min} AND {age_max}"]
+    if gender:
+        conditions.append(f"LOWER(gender) = '{gender}'")
+    if region:
+        conditions.append(f"LOWER(region) = '{region}'")
+    if visit_type:
+        conditions.append(f"LOWER(visit_type) = '{visit_type}'")
 
-        try:
-            query_job = self.client.query(query, job_config=job_config)
-            results = query_job.result().to_dataframe().to_dict(orient="records")
-            if not results or results[0]["avg_cost"] is None:
-                return {k: 0 for k in ["avg_cost", "median_cost", "min_cost", "max_cost"]}
-            result = results[0]
-            return {
-                "avg_cost": float(result["avg_cost"]),
-                "median_cost": float(result["median_cost"]),
-                "min_cost": float(result["min_cost"]),
-                "max_cost": float(result["max_cost"]),
-            }
-        except Exception as e:
-            return {"avg_cost": 0, "median_cost": 0, "min_cost": 0, "max_cost": 0, "error": str(e)}
+    where_clause = " AND ".join(conditions)
 
+    # Build query string
+    query = f"""
+        SELECT
+            AVG(cost) AS avg_cost,
+            APPROX_QUANTILES(cost, 2)[OFFSET(1)] AS median_cost,
+            MIN(cost) AS min_cost,
+            MAX(cost) AS max_cost
+        FROM `datasage-adk-v2.datasage_health.healthcare_costs`
+        WHERE {where_clause}
+    """
 
+    print("QUERY BEING RUN:\n", query)
+
+    # Execute query
+    job_config = bigquery.QueryJobConfig(use_query_cache=True)
+    query_job = client.query(query, job_config=job_config)
+    rows = list(query_job.result())
+
+    if not rows:
+        return {
+            "avg_cost": 0.0,
+            "median_cost": 0.0,
+            "min_cost": 0.0,
+            "max_cost": 0.0,
+        }
+
+    row = rows[0]
+    return {
+        "avg_cost": row["avg_cost"] or 0.0,
+        "median_cost": row["median_cost"] or 0.0,
+        "min_cost": row["min_cost"] or 0.0,
+        "max_cost": row["max_cost"] or 0.0,
+    }
 

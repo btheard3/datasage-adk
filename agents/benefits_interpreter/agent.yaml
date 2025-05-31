@@ -1,0 +1,21 @@
+name: benefits_interpreter
+description: Provides a human-readable interpretation of likely healthcare benefits based on patient filters.
+entrypoint: src/agent.py
+inputs:
+  - name: age_min
+    type: int
+  - name: age_max
+    type: int
+  - name: gender
+    type: str
+  - name: region
+    type: str
+  - name: visit_type
+    type: str
+outputs:
+  - name: summary
+    type: str
+  - name: coverage
+    type: str
+  - name: copay
+    type: str

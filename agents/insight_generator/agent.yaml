@@ -1,0 +1,23 @@
+name: insight_generator
+description: Uses AI to generate high-level healthcare cost insights based on previous agent results and patient profile.
+entrypoint: src/agent.py
+inputs:
+  - name: age_min
+    type: int
+  - name: age_max
+    type: int
+  - name: gender
+    type: str
+  - name: region
+    type: str
+  - name: visit_type
+    type: str
+  - name: estimate_cost
+    type: dict
+  - name: interpret_benefits
+    type: dict
+  - name: detect_anomalies
+    type: dict
+outputs:
+  - name: insight
+    type: str

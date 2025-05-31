@@ -5,31 +5,29 @@ from dotenv import load_dotenv
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-class BenefitsInterpreterAgent:
-    def interpret(self, age_min: int, age_max: int, gender: str, visit_type: str, region: str):
-        prompt = f"""
-        You are a healthcare benefits advisor.
+def run(**kwargs):
+    avg = kwargs.get("avg_cost", 0)
+    median = kwargs.get("median_cost", 0)
+    min_cost = kwargs.get("min_cost", 0)
+    max_cost = kwargs.get("max_cost", 0)
 
-        Based on the following patient context:
-        - Age range: {age_min} to {age_max}
-        - Gender: {gender}
-        - Visit type: {visit_type}
-        - Region: {region}
+    if avg == 0 or max_cost == 0:
+        return {
+            "benefit_summary": "⚠️ Not enough KPI data to generate a summary."
+        }
 
-        Provide a short summary of expected insurance coverage, potential copays, or if prior authorization is likely.
-        Do not mention cost data. Return only 3 bullet points.
-        """
+    prompt = f"""You're a healthcare policy expert. Interpret the following cost KPIs to assess benefit efficiency:
+    - Avg Cost: {avg}
+    - Median: {median}
+    - Min: {min_cost}
+    - Max: {max_cost}
 
-        try:
-            response = openai.ChatCompletion.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "You are a helpful healthcare benefits advisor."},
-                    {"role": "user", "content": prompt}
-                ]
-            )
-            return {"ai_benefits_summary": response["choices"][0]["message"]["content"]}
-        except Exception as e:
-            return {"ai_benefits_summary": f"⚠️ AI interpretation failed: {str(e)}"}
+    What does this suggest about patient value and efficiency of care? Limit to 2–3 sentences."""
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+    )
 
-
+    return {
+        "benefit_summary": response.choices[0].message.content.strip()
+    }

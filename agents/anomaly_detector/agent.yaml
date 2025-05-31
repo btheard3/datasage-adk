@@ -1,0 +1,9 @@
+name: anomaly_detector
+description: Detects anomalies or unusually high cost variance based on cost estimation results.
+entrypoint: src/agent.py
+inputs:
+  - name: estimate_cost
+    type: dict
+outputs:
+  - name: message
+    type: str

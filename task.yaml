@@ -1,0 +1,24 @@
+steps:
+  - id: estimate_cost
+    module: agents.cost_estimator.agent
+    function: run
+
+  - id: interpret_benefits
+    module: agents.benefits_interpreter.agent
+    function: run
+    uses:
+      - estimate_cost
+
+  - id: detect_anomalies
+    module: agents.anomaly_detector.agent
+    function: run
+    uses:
+      - estimate_cost
+
+  - id: generate_insights
+    module: agents.insight_generator.agent
+    function: run
+    uses:
+      - estimate_cost
+      - interpret_benefits
+      - detect_anomalies
