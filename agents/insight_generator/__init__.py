@@ -1,3 +1,3 @@
-from .agent import run
+from .agent import run_insight_generator
 
 

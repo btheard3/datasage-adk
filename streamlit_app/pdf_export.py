@@ -1,30 +1,35 @@
 from fpdf import FPDF
-import io
 
-def generate_pdf_report(results: dict) -> bytes:
+def generate_pdf_report(data: dict) -> bytes:
     pdf = FPDF()
     pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_font("Arial", size=12)
 
-    pdf.cell(0, 10, "DataSage Report", ln=True, align="C")
-
-    for section, content in results.items():
-        pdf.ln(10)
-        pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 10, txt=section.replace("_", " ").title(), ln=True)
+    for key, value in data.items():
+        pdf.set_font("Arial", style='B', size=12)
+        pdf.cell(0, 10, f"{key}:", ln=True)
 
         pdf.set_font("Arial", size=11)
-        if isinstance(content, dict):
-            for key, value in content.items():
-                value_str = str(value).replace("\n", " ").strip()
-                pdf.multi_cell(0, 8, f"{key}: {value_str}")
-        else:
-            pdf.multi_cell(0, 8, str(content))
 
-    output = io.BytesIO()
-    pdf.output(output)
-    output.seek(0)
-    return output.read()
+        if isinstance(value, dict):
+            value_str = "\n".join(f"{k}: {v}" for k, v in value.items())
+        else:
+            value_str = str(value)
+
+        # Split long lines manually to prevent fpdf width errors
+        for line in value_str.splitlines():
+            if not line.strip():
+                pdf.ln()
+                continue
+            wrapped = [line[i:i+90] for i in range(0, len(line), 90)]
+            for segment in wrapped:
+                pdf.multi_cell(0, 8, segment)
+
+        pdf.ln()
+
+    return pdf.output(dest="S").encode("latin-1")
+
 
 
 

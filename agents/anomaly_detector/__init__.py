@@ -1,1 +1,1 @@
-from .agent import run
+from .agent import run_anomaly_detector
