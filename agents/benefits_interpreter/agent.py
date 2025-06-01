@@ -15,17 +15,28 @@ def run_benefits_interpreter(inputs):
         return {"benefit_summary": "⚠️ Not enough KPI data to generate a summary."}
 
     prompt = f"""
-    You are a healthcare analyst. Based on these healthcare cost KPIs, write a short 3-sentence summary of what this might mean from a benefits perspective:
-    - Average Cost: {avg}
-    - Median Cost: {median}
-    - Min Cost: {min_cost}
-    - Max Cost: {max_cost}
-    """
+You are a healthcare benefits specialist. Your role is to interpret cost KPIs from a policy and plan design perspective.
+Explain what the following numbers could mean in terms of member coverage, plan utilization, access, and affordability:
+
+- Average Cost: {avg}
+- Median Cost: {median}
+- Minimum Cost: {min_cost}
+- Maximum Cost: {max_cost}
+
+Focus on:
+1. What this tells us about how members are using their benefits.
+2. Whether these numbers suggest equitable or skewed access.
+3. How this could guide benefit redesign or communication strategy.
+"""
 
     response = openai.ChatCompletion.create(
         model="gpt-4",
-        messages=[{"role": "user", "content": prompt}]
+        messages=[
+            {"role": "system", "content": "You are a healthcare benefits interpretation expert."},
+            {"role": "user", "content": prompt}
+        ]
     )
 
-    summary = response.choices[0].message["content"]
+    summary = response.choices[0].message.content.strip()
     return {"benefit_summary": summary}
+
