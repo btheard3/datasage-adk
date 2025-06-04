@@ -1,5 +1,6 @@
 import os
 from google.cloud import bigquery
+from google.cloud import aiplatform
 from google.oauth2 import service_account
 from dotenv import load_dotenv
 
@@ -16,17 +17,29 @@ def run_cost_estimator(inputs):
     region = inputs.get("state", "")
     visit_type = inputs.get("visit_type", "")
 
+    # Enhanced query with more sophisticated analytics
     query = f"""
-        SELECT
-            AVG(cost) AS avg_cost,
-            APPROX_QUANTILES(cost, 2)[OFFSET(1)] AS median_cost,
-            MIN(cost) AS min_cost,
-            MAX(cost) AS max_cost
-        FROM `datasage-adk-v2.datasage_health.healthcare_costs`
-        WHERE age BETWEEN {age_min} AND {age_max}
-        AND LOWER(gender) = '{gender.lower()}'
-        AND LOWER(region) = '{region.lower()}'
-        AND LOWER(visit_type) = '{visit_type.lower()}'
+        WITH cost_stats AS (
+            SELECT
+                AVG(cost) AS avg_cost,
+                APPROX_QUANTILES(cost, 2)[OFFSET(1)] AS median_cost,
+                MIN(cost) AS min_cost,
+                MAX(cost) AS max_cost,
+                STDDEV(cost) AS std_dev,
+                COUNT(*) as sample_size,
+                AVG(insurance_paid) as avg_insurance_paid,
+                AVG(member_paid) as avg_member_paid
+            FROM `datasage-adk-v2.datasage_health.healthcare_costs`
+            WHERE age BETWEEN {age_min} AND {age_max}
+            AND LOWER(gender) = '{gender.lower()}'
+            AND LOWER(region) = '{region.lower()}'
+            AND LOWER(visit_type) = '{visit_type.lower()}'
+        )
+        SELECT 
+            *,
+            avg_insurance_paid / NULLIF(avg_cost, 0) as insurance_coverage_ratio,
+            avg_member_paid / NULLIF(avg_cost, 0) as member_burden_ratio
+        FROM cost_stats
     """
 
     job = client.query(query)
@@ -39,5 +52,9 @@ def run_cost_estimator(inputs):
         "avg_cost": row.avg_cost,
         "median_cost": row.median_cost,
         "min_cost": row.min_cost,
-        "max_cost": row.max_cost
+        "max_cost": row.max_cost,
+        "std_dev": row.std_dev,
+        "sample_size": row.sample_size,
+        "insurance_coverage_ratio": row.insurance_coverage_ratio,
+        "member_burden_ratio": row.member_burden_ratio
     }
